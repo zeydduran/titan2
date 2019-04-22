@@ -43,6 +43,8 @@ class Router
 
     // Names
     private static $names       = [];
+    // parameters
+    private static $parameters       = [];
 
     // Group Counter
     private static $groupped    = 0;
@@ -85,6 +87,8 @@ class Router
         // Call the Callable
         call_user_func($callback);
 
+        self::$groupped--;
+
         if (self::$groupped > 0) {
             self::$baseRoute    = self::$groups[self::$groupped-1]['baseRoute'];
             self::$middlewares  = self::$groups[self::$groupped-1]['middlewares'];
@@ -92,11 +96,7 @@ class Router
             self::$domain       = self::$groups[self::$groupped-1]['domain'];
             self::$ip           = self::$groups[self::$groupped-1]['ip'];
             self::$ssl          = self::$groups[self::$groupped-1]['ssl'];
-        }
-
-        self::$groupped--;
-
-        if (self::$groupped <= 0) {
+        } else {
             // Reset Base Route
             self::$baseRoute    = '/';
 
@@ -114,6 +114,9 @@ class Router
 
             // Reset SSL
             self::$ssl          = false;
+
+            // Reset Group Counter
+            self::$groupped     = 0;
         }
     }
 
@@ -199,9 +202,9 @@ class Router
      */
     public static function route($method, $pattern, $callback)
     {
-        if ($pattern == '/') {
+        if ($pattern == '/')
             $pattern    = self::$baseRoute . trim($pattern, '/');
-        } else {
+        else {
             if (self::$baseRoute == '/')
                 $pattern    = self::$baseRoute . trim($pattern, '/');
             else
@@ -254,7 +257,6 @@ class Router
         $matched        = 0;
 
         foreach (self::$routes as $key => $val) {
-
             if (preg_match($val['pattern'], self::getCurrentUri(), $params)) {
 
                 // Checking domain
@@ -273,7 +275,9 @@ class Router
                     $matched++;
 
                     array_shift($params);
-
+                    if (isset($val["params"])) {
+                        $params = array_merge($params,$val["params"]);
+                    }
                     // Checking middlewares
                     if (array_key_exists('middlewares', $val)) {
                         foreach ($val['middlewares'] as $midKey => $midVal) {
@@ -317,14 +321,14 @@ class Router
     private static function checkDomain($params)
     {
         if (array_key_exists('domain', $params)) {
-
-            if ($params['domain'] !== trim(str_replace('www.', '', $_SERVER['SERVER_NAME']), '/'))
+            if ($params['domain'] !== trim(str_replace('www.', '', $_SERVER['SERVER_NAME']), '/')) {
                 return false;
-
+            } else {
+                return true;
+            }
+        } else {
             return true;
         }
-
-        return true;
     }
 
     /**
@@ -335,10 +339,11 @@ class Router
      */
     private static function checkMethod($params)
     {
-        if ($params['method'] !== self::getRequestMethod())
+        if ($params['method'] !== self::getRequestMethod()) {
             return false;
-
-        return true;
+        } else {
+            return true;
+        }
     }
 
     /**
@@ -350,25 +355,20 @@ class Router
     private static function checkIp($params)
     {
         if (array_key_exists('ip', $params)) {
-
             if (is_array($params['ip'])) {
-
                 if (!in_array($_SERVER['REMOTE_ADDR'], $params['ip']))
                     return false;
-
-                return true;
-
+                else
+                    return true;
             } else {
-
                 if ($_SERVER['REMOTE_ADDR'] != $params['ip'])
                     return false;
-
-                return true;
-
+                else
+                    return true;
             }
+        } else {
+            return true;
         }
-
-        return true;
     }
 
     /**
@@ -380,15 +380,13 @@ class Router
     private static function checkSSL($params)
     {
         if (array_key_exists('ssl', $params) && $params['ssl'] === true) {
-
             if ($_SERVER['REQUEST_SCHEME'] !== 'https')
                 return false;
-
+            else
+                return true;
+        } else {
             return true;
-
         }
-
-        return true;
     }
 
     /**
@@ -600,6 +598,14 @@ class Router
 
         return new self;
     }
+    public static function parameters($params = [])
+    {
+        $routeKey = array_search(end(self::$routes), self::$routes);
+        self::$parameters = $params;
+        self::$routes[$routeKey]['params'] = $params;
+
+        return new self;
+    }
 
     /**
      * Get url based on named route
@@ -613,8 +619,10 @@ class Router
         foreach (self::$routes as $route) {
             if (array_key_exists('name', $route) && $route['name'] == $name) {
                 $uri = $route['uri'];
-                $pattern = self::_parseUri($uri, $params);
-                $pattern = implode('/', $pattern);
+                if (!empty($params)) {
+                    $pattern = self::_parseUri($uri, $params);
+                    $pattern = implode('/', $pattern);
+                }
                 break;
             }
         }
