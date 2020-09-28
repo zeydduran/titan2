@@ -499,11 +499,43 @@ class Request
 		if (is_null($data))
 			return null;
 
-        if (is_array($data))
-            return $filter === true ? array_map([$this, 'xssClean'], $data) : array_map('trim', $data);
+        return $filter === true ? $this->recursiveCleaner($data) : $this->trimArray($data);
+    }
 
-        return $filter === true ? $this->xssClean($data) : trim($data);
-	}
+
+
+
+    public function recursiveCleaner($data)
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                if (is_array($value)) {
+                    $data[$key] = $this->recursiveCleaner($value);
+                } else {
+                    $data[$key] = $this->xssClean($value);
+                }
+            }
+        } else {
+            $data = $this->xssClean($data);
+        }
+        return $data;
+    }
+    public function trimArray($data)
+    {
+        if (is_array($data)) {
+            foreach ($data as $key => $value) {
+                if (is_array($value)) {
+                    $data[$key] = $this->trimArray($value);
+                } else {
+                    $data[$key] = trim($value);
+                }
+            }
+        } else {
+            $data = trim($data);
+        }
+        return $data;
+    }
+
 
 	/**
 	 * Clear XSS
